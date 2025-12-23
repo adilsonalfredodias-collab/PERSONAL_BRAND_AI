@@ -2,13 +2,11 @@
 import { GoogleGenAI } from "@google/genai";
 import { QuizData } from "../types";
 
-// Helper to instantiate GoogleGenAI immediately before use as per guidelines
-const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export const generateMarketingPlan = async (data: QuizData): Promise<string> => {
+  // Instanciação imediata antes do uso para capturar a chave injetada pelo diálogo aistudio
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
   try {
-    const ai = getAI();
-    
     const systemInstruction = `
       VOCÊ É O ESTRATEGISTA DE MARKETING PESSOAL E BRANDING MAIS EFICAZ DO MUNDO.
       Sua missão é gerar um Plano de Ação Mensal detalhado (4 Semanas) em Markdown.
@@ -17,22 +15,21 @@ export const generateMarketingPlan = async (data: QuizData): Promise<string> => 
     `;
 
     const prompt = `
-      # INFORMAÇÕES
-      * Rede: ${data.socialNetwork}
-      * Objetivo: ${data.objective}
-      * Nicho: ${data.niche}
-      * Tempo: ${data.dailyTime}
-      * CV: ${data.cvText}
+      # INFORMAÇÕES DO USUÁRIO
+      * Rede Social: ${data.socialNetwork}
+      * Objetivo Principal: ${data.objective}
+      * Nicho de Mercado: ${data.niche}
+      * Disponibilidade Diária: ${data.dailyTime}
+      * Dados de Experiência/CV: ${data.cvText}
 
-      Gere o plano seguindo rigorosamente a estrutura de:
-      1. Diagnóstico
-      2. Checklist de Perfil
-      3. Pilares de Conteúdo
-      4. Calendário Mensal (4 Semanas com tarefas diárias claras marcadas com "-")
-      5. Dica de Ouro
+      Gere o plano seguindo esta estrutura Markdown:
+      1. Diagnóstico da Presença Atual
+      2. Checklist de Otimização de Perfil (Bio, Foto, Links)
+      3. Pilares de Conteúdo Recomendados
+      4. Calendário de 4 Semanas (com tarefas diárias claras marcadas com "-")
+      5. Dica de Ouro de Branding
     `;
 
-    // Alterado para gemini-3-flash-preview para maior estabilidade e limites de cota melhores no plano gratuito
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
@@ -46,32 +43,31 @@ export const generateMarketingPlan = async (data: QuizData): Promise<string> => 
   } catch (error: any) {
     console.error("Erro Gemini:", error);
     
-    // Tratamento amigável para erro de cota
     if (error.message?.includes("429") || error.message?.includes("quota")) {
-      throw new Error("Limite de uso da IA atingido. Por favor, aguarde um minuto e tente novamente.");
+      throw new Error("Limite de uso atingido. Tente novamente em um minuto.");
     }
     
-    throw new Error(error.message || "Falha na comunicação com a Inteligência Artificial.");
+    // Repassa o erro de entidade não encontrada para ser tratado no App.tsx
+    throw error;
   }
 };
 
 export const generatePostDraft = async (task: string, quizData: QuizData): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
   try {
-    const ai = getAI();
-    
     const prompt = `
       Como um expert em Copywriting, escreva uma legenda completa para um post no ${quizData.socialNetwork}.
-      O tema do post é: "${task}"
-      O nicho do usuário é: ${quizData.niche}
-      O objetivo é: ${quizData.objective}
+      Tema: "${task}"
+      Nicho: ${quizData.niche}
+      Objetivo: ${quizData.objective}
+      Base de Conhecimento: ${quizData.cvText.substring(0, 500)}...
       
-      A legenda deve:
-      1. Ter um gancho (hook) forte nos primeiros 3 segundos.
-      2. Desenvolver o valor baseado na expertise de: ${quizData.cvText.substring(0, 500)}...
-      3. Ter uma CTA (Chamada para Ação) clara.
-      4. Usar emojis moderadamente e hashtags estratégicas.
-      
-      Retorne apenas o texto da legenda.
+      A legenda deve ter:
+      - Gancho forte (Hook)
+      - Valor prático
+      - CTA clara
+      - Hashtags estratégicas
     `;
 
     const response = await ai.models.generateContent({
@@ -82,7 +78,6 @@ export const generatePostDraft = async (task: string, quizData: QuizData): Promi
 
     return response.text || "Não foi possível gerar a legenda.";
   } catch (error: any) {
-    if (error.message?.includes("429")) return "Limite de cota atingido para gerar legendas. Tente em instantes.";
-    return "Erro ao gerar legenda automática.";
+    throw error;
   }
 };

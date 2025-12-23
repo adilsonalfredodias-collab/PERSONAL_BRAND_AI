@@ -8,7 +8,7 @@ import ProcessingStep from './components/ProcessingStep';
 import ResultDashboard from './components/ResultDashboard';
 import Header from './components/Header';
 import Footer from './components/Footer';
-import { Rocket } from 'lucide-react';
+import { Rocket, ShieldAlert } from 'lucide-react';
 
 const App: React.FC = () => {
   const [state, setState] = useState<AppState>({
@@ -27,30 +27,36 @@ const App: React.FC = () => {
 
   const [keySelected, setKeySelected] = useState<boolean | null>(null);
 
-  useEffect(() => {
-    const verifyKeyStatus = async () => {
-      if (typeof window !== 'undefined' && window.aistudio) {
-        try {
-          const isSelected = await window.aistudio.hasSelectedApiKey();
-          setKeySelected(isSelected);
-        } catch (e) {
-          setKeySelected(true); 
-        }
-      } else {
-        setKeySelected(true);
+  const checkKey = useCallback(async () => {
+    if (typeof window !== 'undefined' && window.aistudio) {
+      try {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        setKeySelected(hasKey);
+      } catch (e) {
+        setKeySelected(false);
       }
-    };
-    verifyKeyStatus();
+    } else {
+      // Se não houver aistudio no window, assume que está em ambiente dev normal
+      setKeySelected(true);
+    }
   }, []);
+
+  useEffect(() => {
+    checkKey();
+  }, [checkKey]);
 
   const handleOpenKeySelector = async () => {
     if (window.aistudio) {
       await window.aistudio.openSelectKey();
+      // Assume sucesso após abertura para mitigar race conditions
       setKeySelected(true);
     }
   };
 
-  const startQuiz = () => setState(prev => ({ ...prev, step: 'quiz' }));
+  // Fix: Implemented startQuiz to change the app state and move to the quiz step
+  const startQuiz = () => {
+    setState(prev => ({ ...prev, step: 'quiz' }));
+  };
 
   const handleQuizSubmit = async (data: QuizData) => {
     setState(prev => ({ ...prev, quizData: data, step: 'processing', error: null }));
@@ -63,19 +69,20 @@ const App: React.FC = () => {
         result: { markdown: planMarkdown }
       }));
     } catch (err: any) {
-      let errorMessage = "Ocorreu um erro ao gerar seu plano. Tente novamente.";
-      
-      if (err.message && err.message.includes("Requested entity was not found.")) {
+      console.error("Erro na execução:", err);
+      let errorMessage = "Ocorreu um erro ao gerar seu plano.";
+
+      // Verificação específica solicitada nas diretrizes para resetar chave de API
+      if (err.message && (
+          err.message.includes("Requested entity was not found") || 
+          err.message.includes("API_KEY_INVALID") ||
+          err.message.includes("401") ||
+          err.message.includes("403")
+      )) {
         setKeySelected(false);
-        errorMessage = "Chave de API inválida ou projeto não encontrado. Por favor, selecione novamente.";
-      } else if (err.message) {
-        // Tenta extrair uma mensagem limpa se for um erro JSON
-        try {
-          const parsed = JSON.parse(err.message);
-          errorMessage = parsed.error?.message || err.message;
-        } catch {
-          errorMessage = err.message;
-        }
+        errorMessage = "Sua chave de API expirou ou é inválida. Por favor, selecione uma chave de um projeto com faturamento ativo.";
+      } else {
+        errorMessage = err.message || "Falha na comunicação com a IA.";
       }
 
       setState(prev => ({ 
@@ -91,28 +98,31 @@ const App: React.FC = () => {
   if (keySelected === false) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
-        <div className="max-w-md w-full bg-white rounded-[2.5rem] p-10 shadow-2xl border border-slate-100 text-center">
-          <div className="bg-indigo-600 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-lg shadow-indigo-200">
-            <Rocket className="w-10 h-10 text-white" />
+        <div className="max-w-md w-full bg-white rounded-[2.5rem] p-10 shadow-2xl border border-slate-100 text-center animate-in fade-in zoom-in duration-300">
+          <div className="bg-amber-100 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-lg shadow-amber-50">
+            <ShieldAlert className="w-10 h-10 text-amber-600" />
           </div>
-          <h2 className="text-3xl font-black text-slate-900 mb-4">Configuração Necessária</h2>
-          <p className="text-slate-600 mb-10 leading-relaxed">
-            Para utilizar o <strong>Gemini AI</strong>, você deve selecionar uma chave de API válida.
+          <h2 className="text-3xl font-black text-slate-900 mb-4">Ação Necessária</h2>
+          <p className="text-slate-600 mb-10 leading-relaxed text-sm">
+            Para utilizar os modelos <strong>Gemini 3</strong>, você precisa selecionar uma chave de API de um projeto Google Cloud válido.
           </p>
           <div className="space-y-4">
             <button
               onClick={handleOpenKeySelector}
-              className="w-full bg-indigo-600 text-white px-8 py-5 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-3"
+              className="w-full bg-indigo-600 text-white px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-3 active:scale-95"
             >
-              Selecionar Chave de API
+              Conectar Chave de API
             </button>
+            <p className="text-[10px] text-slate-400 font-medium px-4">
+              Nota: Projetos gratuitos podem ter restrições. Recomenda-se um projeto com faturamento configurado.
+            </p>
             <a 
               href="https://ai.google.dev/gemini-api/docs/billing" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="block text-xs text-slate-400 font-bold uppercase tracking-tighter hover:text-indigo-600 transition-colors"
+              className="inline-block text-[10px] text-indigo-600 font-bold uppercase tracking-tighter hover:underline"
             >
-              Ver Requisitos de Faturamento
+              Documentação de Faturamento
             </a>
           </div>
         </div>
