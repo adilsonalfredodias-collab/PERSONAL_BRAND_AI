@@ -32,9 +32,9 @@ export const generateMarketingPlan = async (data: QuizData): Promise<string> => 
       5. Dica de Ouro
     `;
 
-    // Using Gemini 3 Pro for complex strategic reasoning
+    // Alterado para gemini-3-flash-preview para maior estabilidade e limites de cota melhores no plano gratuito
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
+      model: "gemini-3-flash-preview",
       contents: prompt,
       config: { 
         systemInstruction, 
@@ -42,10 +42,15 @@ export const generateMarketingPlan = async (data: QuizData): Promise<string> => 
       },
     });
     
-    // Correct way to extract text output from response
     return response.text || "Erro ao gerar conteúdo.";
   } catch (error: any) {
     console.error("Erro Gemini:", error);
+    
+    // Tratamento amigável para erro de cota
+    if (error.message?.includes("429") || error.message?.includes("quota")) {
+      throw new Error("Limite de uso da IA atingido. Por favor, aguarde um minuto e tente novamente.");
+    }
+    
     throw new Error(error.message || "Falha na comunicação com a Inteligência Artificial.");
   }
 };
@@ -69,7 +74,6 @@ export const generatePostDraft = async (task: string, quizData: QuizData): Promi
       Retorne apenas o texto da legenda.
     `;
 
-    // Using Gemini 3 Flash for faster text generation tasks
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
@@ -77,7 +81,8 @@ export const generatePostDraft = async (task: string, quizData: QuizData): Promi
     });
 
     return response.text || "Não foi possível gerar a legenda.";
-  } catch (error) {
+  } catch (error: any) {
+    if (error.message?.includes("429")) return "Limite de cota atingido para gerar legendas. Tente em instantes.";
     return "Erro ao gerar legenda automática.";
   }
 };

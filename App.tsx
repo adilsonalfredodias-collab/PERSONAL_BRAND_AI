@@ -25,18 +25,16 @@ const App: React.FC = () => {
     error: null,
   });
 
-  // Track if a paid API key has been selected for Gemini 3 Pro usage
   const [keySelected, setKeySelected] = useState<boolean | null>(null);
 
   useEffect(() => {
-    // Verify API key selection status on initialization
     const verifyKeyStatus = async () => {
       if (typeof window !== 'undefined' && window.aistudio) {
         try {
           const isSelected = await window.aistudio.hasSelectedApiKey();
           setKeySelected(isSelected);
         } catch (e) {
-          setKeySelected(true); // Fallback
+          setKeySelected(true); 
         }
       } else {
         setKeySelected(true);
@@ -48,7 +46,6 @@ const App: React.FC = () => {
   const handleOpenKeySelector = async () => {
     if (window.aistudio) {
       await window.aistudio.openSelectKey();
-      // Assume success to prevent race conditions during UI updates
       setKeySelected(true);
     }
   };
@@ -66,23 +63,31 @@ const App: React.FC = () => {
         result: { markdown: planMarkdown }
       }));
     } catch (err: any) {
-      // Re-prompt for API key selection if the requested project is not found
+      let errorMessage = "Ocorreu um erro ao gerar seu plano. Tente novamente.";
+      
       if (err.message && err.message.includes("Requested entity was not found.")) {
         setKeySelected(false);
-        setState(prev => ({ 
-          ...prev, 
-          step: 'quiz', 
-          error: "Chave de API inválida ou projeto não encontrado. Por favor, selecione novamente." 
-        }));
-      } else {
-        setState(prev => ({ ...prev, step: 'quiz', error: err.message }));
+        errorMessage = "Chave de API inválida ou projeto não encontrado. Por favor, selecione novamente.";
+      } else if (err.message) {
+        // Tenta extrair uma mensagem limpa se for um erro JSON
+        try {
+          const parsed = JSON.parse(err.message);
+          errorMessage = parsed.error?.message || err.message;
+        } catch {
+          errorMessage = err.message;
+        }
       }
+
+      setState(prev => ({ 
+        ...prev, 
+        step: 'quiz', 
+        error: errorMessage 
+      }));
     }
   };
 
   const restart = () => setState(prev => ({ ...prev, step: 'landing', result: null, error: null }));
 
-  // Show mandatory API key selection screen before app access
   if (keySelected === false) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
@@ -92,7 +97,7 @@ const App: React.FC = () => {
           </div>
           <h2 className="text-3xl font-black text-slate-900 mb-4">Configuração Necessária</h2>
           <p className="text-slate-600 mb-10 leading-relaxed">
-            Para utilizar o <strong>Gemini 3 Pro</strong>, você deve selecionar uma chave de API de um projeto com faturamento ativo.
+            Para utilizar o <strong>Gemini AI</strong>, você deve selecionar uma chave de API válida.
           </p>
           <div className="space-y-4">
             <button
