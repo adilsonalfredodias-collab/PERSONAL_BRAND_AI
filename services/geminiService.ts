@@ -2,13 +2,8 @@
 import { GoogleGenAI } from "@google/genai";
 import { QuizData } from "../types";
 
-const getAI = () => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    throw new Error("API_KEY não encontrada. Configure-a no painel do Vercel.");
-  }
-  return new GoogleGenAI({ apiKey });
-};
+// Helper to instantiate GoogleGenAI immediately before use as per guidelines
+const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const generateMarketingPlan = async (data: QuizData): Promise<string> => {
   try {
@@ -37,11 +32,17 @@ export const generateMarketingPlan = async (data: QuizData): Promise<string> => 
       5. Dica de Ouro
     `;
 
+    // Using Gemini 3 Pro for complex strategic reasoning
     const response = await ai.models.generateContent({
       model: "gemini-3-pro-preview",
       contents: prompt,
-      config: { systemInstruction, temperature: 0.7 },
+      config: { 
+        systemInstruction, 
+        temperature: 0.7 
+      },
     });
+    
+    // Correct way to extract text output from response
     return response.text || "Erro ao gerar conteúdo.";
   } catch (error: any) {
     console.error("Erro Gemini:", error);
@@ -68,8 +69,9 @@ export const generatePostDraft = async (task: string, quizData: QuizData): Promi
       Retorne apenas o texto da legenda.
     `;
 
+    // Using Gemini 3 Flash for faster text generation tasks
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: { temperature: 0.8 }
     });
